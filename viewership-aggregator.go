@@ -1,12 +1,15 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -355,40 +358,53 @@ func main() {
 		}
 	}
 
-	PrintFinalReport(report)
+	sort.Sort(report)
+	PrintFinalReport(report, dateRangeRegexStr)
 	log.Printf("Processed %d MSO's, %d days, in %v\n", len(msoList), len(dateRangeRegexStr), time.Since(startTime))
 }
 
-func formatReportFilename(fileName string) string {
-	return fmt.Sprintf("%s-%s-%s.csv", fileName, dateFrom, dateTo)
+func formatReportFilename(fileName, date string) string {
+	return fmt.Sprintf("%s-%s.csv", fileName, date)
 }
 
-func PrintFinalReport(report ReportEntryList) {
+func PrintFinalReport(report ReportEntryList, dateRange []string) {
 	log.Println("Aggregated final:")
+	var wg sync.WaitGroup
 
-	reportFileName := formatReportFilename("viewership-report")
-	out, err := os.Create(reportFileName)
-	if err != nil {
-		panic(err)
+	for _, eachDate := range dateRange {
+		wg.Add(1)
+		go func(date string) {
+			reportFileName := formatReportFilename("viewership-report", date)
+
+			out, err := os.Create(reportFileName)
+			if err != nil {
+				log.Println("Error creating report:", err)
+			}
+
+			defer func() {
+				out.Close()
+				wg.Done()
+			}()
+
+			writer := csv.NewWriter(out)
+
+			reportForDate := report.Filter(date)
+			if verbose {
+				log.Printf("Date: %s, number of records: %d\n", date, len(reportForDate))
+			}
+
+			writer.WriteAll(reportForDate.Convert())
+
+			if err := writer.Error(); err != nil {
+				log.Fatalln("error writing csv:", err)
+			}
+
+			log.Println("Saved the report in file: ", reportFileName)
+
+		}(eachDate)
 	}
 
-	defer out.Close()
-
-	writer := csv.NewWriter(out)
-
-	writer.WriteAll(report.Convert())
-
-	if err := writer.Error(); err != nil {
-		log.Fatalln("error writing csv:", err)
-	}
-
-	log.Println("Saved the report in file: ", reportFileName)
-
-	if verbose {
-		for _, entry := range report {
-			log.Println(entry)
-		}
-	}
+	wg.Wait()
 }
 
 // hh_id, ts, pg_id, pg_name, ch_num, ch_name, event, zipcode, country
@@ -413,7 +429,7 @@ type ReportEntryList []ReportEntry
 
 // convert []ReportEntry into [][]string for csv file
 func (report ReportEntryList) Convert() [][]string {
-	header := []string{"Mso Id", "Mso Name", "hh_id", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"}
+	header := []string{"Mso Name", "Mso Id", "hh_id", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"}
 	bodyAll := [][]string{}
 
 	bodyAll = append(bodyAll, header)
@@ -426,7 +442,7 @@ func (report ReportEntryList) Convert() [][]string {
 				entry.hh_id,
 				entry.ts,
 				entry.pg_id,
-				entry.pg_name,
+				`"` + entry.pg_name + `"`,
 				entry.ch_num,
 				entry.ch_name,
 				entry.event,
@@ -437,19 +453,49 @@ func (report ReportEntryList) Convert() [][]string {
 	return bodyAll
 }
 
+func (list ReportEntryList) Len() int {
+	return len(list)
+}
+
+func (list ReportEntryList) Less(i, j int) bool {
+	return list[i].ts < list[j].ts
+}
+
+func (list ReportEntryList) Swap(i, j int) {
+	list[i], list[j] = list[j], list[i]
+}
+
+func (report ReportEntryList) Filter(date string) ReportEntryList {
+	var reportForDate ReportEntryList
+	// 0123 45 67
+	// 2016 06 01
+	// 2016-06-01
+	date = date[:4] + "-" + date[4:6] + "-" + date[6:8]
+
+	for _, entry := range report {
+		if strings.Contains(entry.ts, date) {
+			reportForDate = append(reportForDate, entry)
+		}
+	}
+
+	return reportForDate
+}
+
 // Read hh count from a single file
 func ReadViewershipEntries(fileName string) []ReportEntry {
 	entries := []ReportEntry{}
 
 	entriesFile, err := os.Open(fileName)
 	if err != nil {
-		log.Fatalf("Could not open Mso List file: %s, Error: %s\n", fileName, err)
+		log.Printf("Could not open viewership file: %s, Error: %s\n", fileName, err)
+		return entries
 	}
 
 	r := csv.NewReader(entriesFile)
 	records, err := r.ReadAll()
 	if err != nil {
-		log.Fatalf("Could not read viewership file: %s, Error: %s\n", fileName, err)
+		log.Printf("Could not read viewership file: %s, Error: %s\n", fileName, err)
+		return entries
 	}
 
 	msoId, msoName := GetMsoIdNameFrom(fileName)
@@ -462,11 +508,22 @@ func ReadViewershipEntries(fileName string) []ReportEntry {
 			entries = append(entries, ReportEntry{msoId, msoName, record[0], record[1], record[2], record[3], record[4], record[5], record[6], record[7], record[8]})
 		}
 	}
+	if verbose {
+		log.Printf("Read: %d entries from %s \n", len(records), fileName)
+	}
 	return entries
 
 }
 
 func GetMsoIdNameFrom(fileName string) (string, string) {
+	// Reading:  cdw-viewership-reports/20160601/Panhandle-Guymon/tv_viewership-Panhandle-Guymon-20160601.csv
+	segments := strings.Split(fileName, "/")
+
+	for _, mso := range msoList {
+		if mso.Name == segments[2] {
+			return mso.Name, mso.Code
+		}
+	}
 	return "", ""
 }
 
@@ -488,7 +545,7 @@ func processSingleDownload(key string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for i := 0; i < maxAttempts; i++ {
 		log.Println("Downloading: ", key)
-		if downloadFile(key) {
+		if downloadFile(key) && unzipFile(key) {
 			if verbose {
 				log.Println("Successfully downloaded: ", key)
 			}
@@ -540,5 +597,62 @@ func downloadFile(filename string) bool {
 	}
 
 	log.Println("Downloaded file ", file.Name(), numBytes, " bytes")
+	return true
+}
+
+func unzipFile(fileName string) bool {
+	handle, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0660)
+
+	if err != nil {
+		log.Println("Error opening gzip file: ", err)
+		return false
+	}
+
+	zipReader, err := gzip.NewReader(handle)
+	if err != nil {
+		log.Println("Error: ", err)
+		return false
+	}
+
+	defer zipReader.Close()
+
+	fileContents, err := ioutil.ReadAll(zipReader)
+
+	if err != nil {
+		log.Println("Error ReadAll: ", err)
+		return false
+	}
+
+	err = handle.Close()
+	if err != nil {
+		log.Println("Error closing file: ", err)
+		return false
+	}
+
+	return SaveUnzippedContent(fileName, fileContents)
+}
+
+func SaveUnzippedContent(fileName string, fileContents []byte) bool {
+	unzippedFileName := strings.TrimSuffix(fileName, ".gzip")
+	if verbose {
+		log.Printf("Unzipping %s into %s\n", fileName, unzippedFileName)
+	}
+
+	file, err := os.Create(unzippedFileName)
+
+	defer file.Close()
+
+	if err != nil {
+		log.Println("Failed creating unzipped file: ", err)
+		return false
+	}
+
+	if _, err := file.Write(fileContents); err != nil {
+		log.Println("Error writing unzipped content: ", err)
+		return false
+	}
+
+	file.Sync()
+
 	return true
 }

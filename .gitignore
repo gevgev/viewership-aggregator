@@ -3,7 +3,7 @@
 *.zip
 tmp/
 viewership-aggregator
-test/*.*
+test.out
 event/
 *.gzip
 cdw-viewership-reports/
