@@ -1,0 +1,10 @@
+*.txt
+*.log
+*.zip
+tmp/
+viewership-aggregator
+test/*.*
+event/
+*.gzip
+cdw-viewership-reports/
+viewership-report*
