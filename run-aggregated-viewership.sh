@@ -2,8 +2,8 @@
 
 if [ "$#" -ne 2 ]; then
 	echo "Error: Missing parameters:"
-	echo "  from <20160701"
-	echo "  to <20160709>"
+	echo "  from <2016-07-01"
+	echo "  to <2016-07-09>"
 	exit 1
 fi
 

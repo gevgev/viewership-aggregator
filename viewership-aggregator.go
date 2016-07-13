@@ -349,7 +349,8 @@ func main() {
 // GenerateDailyAggregates will walk through day/mso files, and will aggregate/sort them
 func GenerateDailyAggregates(dateFrom string, dateRange []string, daysForward int) {
 	log.Println("Starting reading/aggregating the results")
-	var wg sync.WaitGroup
+	var wg, wgAppend sync.WaitGroup
+	var mu sync.Mutex
 
 	reportDay := dateFrom
 	reportIndex := 0
@@ -391,17 +392,25 @@ func GenerateDailyAggregates(dateFrom string, dateRange []string, daysForward in
 
 			for _, file := range fileList {
 				if isFileToPush(file) {
-					if verbose {
-						log.Println("Reading: ", file)
-					}
-					ss := ReadViewershipEntries(file)
-					before := len(report)
-					report = append(report, ss...)
-					if verbose {
-						log.Printf("Appending %d records from file %s. Before: %d, now: %d records\n", len(ss), file, before, len(report))
-					}
+					wgAppend.Add(1)
+					go func(fileName string) {
+						if verbose {
+							log.Println("Reading: ", fileName)
+						}
+						ss := ReadViewershipEntries(fileName)
+						mu.Lock()
+						before := len(report)
+						report = append(report, ss...)
+						if verbose {
+							log.Printf("Appending %d records from file %s. Before: %d, now: %d records\n", len(ss), file, before, len(report))
+						}
+						mu.Unlock()
+						wgAppend.Done()
+					}(file)
 				}
 			}
+
+			wgAppend.Wait()
 
 			sort.Sort(report)
 			wg.Add(1)
