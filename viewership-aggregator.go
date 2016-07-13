@@ -47,6 +47,7 @@ var (
 	daysAfter       int
 
 	verbose bool
+	testRun bool
 	appName string
 
 	failedFilesChan         chan string
@@ -67,6 +68,7 @@ func init() {
 	flagConcurrency := flag.Int("c", 10, "The number of files to process `concurrent`ly")
 	flagDaysAfter := flag.Int("d", 2, "The number of days to go back for the report")
 	flagHelp := flag.Bool("h", false, "Help")
+	flagTestRun := flag.Bool("t", false, "Test run to dump full csv as well")
 
 	flagVerbose := flag.Bool("v", true, "`Verbose`: outputs to the screen")
 
@@ -88,6 +90,7 @@ func init() {
 		daysAfter = *flagDaysAfter
 
 		verbose = *flagVerbose
+		testRun = *flagTestRun
 	} else {
 		usage()
 	}
@@ -175,12 +178,14 @@ func convertToDateParts(dtStr string) (yy, mm, dd int) {
 }
 
 // a list of strings for each date in range to lookup
+// starting one day before (from - 1) -to- N daysAfter (to + daysAfter)
 func getDateRange(dateFrom, dateTo string, daysAfter int) []string {
 
 	regExpStr := []string{}
 	//'20160630'
 	yy, mm, dd := convertToDateParts(dateFrom)
 	dtFrom := time.Date(yy, time.Month(mm), dd, 0, 0, 0, 0, time.UTC)
+	dtFrom = dtFrom.AddDate(0, 0, -1)
 
 	if verbose {
 		log.Println("From:", dtFrom.String())
@@ -368,7 +373,8 @@ func GenerateDailyAggregates(dateFrom string, dateRange []string, daysForward in
 				log.Printf("Adding %d files per MSO for reporting date: %v\n", daysForward+1, reportDay)
 			}
 			// Adding files with the requested days before for THIS reporting day
-			for jj := reportIndex; jj <= reportIndex+daysForward; jj++ {
+			// Starting one day before -1 -up-to- N daysForward
+			for jj := reportIndex - 1; jj <= reportIndex+daysForward; jj++ {
 				if verbose {
 					log.Printf("ReportDay: %s, ReportIndex: %d, DayForward: %d, jj: %d\n", reportDay, reportIndex, daysForward, jj)
 					log.Println(dateRange)
@@ -439,8 +445,11 @@ func PrintFinalReport(report ReportEntryList, date string, wg *sync.WaitGroup) {
 	reportForDate := report.Filter(date)
 	if verbose {
 		log.Printf("Date: %s, number of records: %d\n", date, len(reportForDate))
-		//log.Println("Saving full dump:")
-		//saveCSV(date + "-full-dump.csv", report)
+	}
+
+	if testRun {
+		log.Println("Saving full dump:")
+		saveCSV(date+"-full-dump.csv", report)
 	}
 
 	saveCSV(reportFileName, reportForDate)
