@@ -412,8 +412,6 @@ func PrintFinalReport(report ReportEntryList, dateRange []string) {
 
 //aggregated reported entry
 type ReportEntry struct {
-	MsoId   string
-	MsoName string
 	hh_id   string
 	ts      string
 	pg_id   string
@@ -429,7 +427,7 @@ type ReportEntryList []ReportEntry
 
 // convert []ReportEntry into [][]string for csv file
 func (report ReportEntryList) Convert() [][]string {
-	header := []string{"Mso Name", "Mso Id", "hh_id", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"}
+	header := []string{"ts", "hh_id", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"}
 	bodyAll := [][]string{}
 
 	bodyAll = append(bodyAll, header)
@@ -437,10 +435,8 @@ func (report ReportEntryList) Convert() [][]string {
 	for _, entry := range report {
 		bodyAll = append(bodyAll,
 			[]string{
-				entry.MsoId,
-				entry.MsoName,
-				entry.hh_id,
 				entry.ts,
+				entry.hh_id,
 				entry.pg_id,
 				`"` + entry.pg_name + `"`,
 				entry.ch_num,
@@ -498,14 +494,12 @@ func ReadViewershipEntries(fileName string) []ReportEntry {
 		return entries
 	}
 
-	msoId, msoName := GetMsoIdNameFrom(fileName)
-
 	for i, record := range records {
 		// Skipping the first line - header
 		if i > 0 {
 			// 	---			---			0		1		2		3			4		5			6		7			8
-			// "Mso Id", "Mso Name", "hh_id", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"
-			entries = append(entries, ReportEntry{msoId, msoName, record[0], record[1], record[2], record[3], record[4], record[5], record[6], record[7], record[8]})
+			// 						 "hh_id", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"
+			entries = append(entries, ReportEntry{record[0], record[1], record[2], record[3], record[4], record[5], record[6], record[7], record[8]})
 		}
 	}
 	if verbose {
@@ -513,18 +507,6 @@ func ReadViewershipEntries(fileName string) []ReportEntry {
 	}
 	return entries
 
-}
-
-func GetMsoIdNameFrom(fileName string) (string, string) {
-	// Reading:  cdw-viewership-reports/20160601/Panhandle-Guymon/tv_viewership-Panhandle-Guymon-20160601.csv
-	segments := strings.Split(fileName, "/")
-
-	for _, mso := range msoList {
-		if mso.Name == segments[2] {
-			return mso.Name, mso.Code
-		}
-	}
-	return "", ""
 }
 
 func isFileToPush(fileName string) bool {
