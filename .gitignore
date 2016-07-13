@@ -3,8 +3,10 @@
 *.zip
 tmp/
 viewership-aggregator
+aws-s3-uploader
 test.out
 event/
 *.gzip
 cdw-viewership-reports/
 viewership-report*
+build-ec2/
