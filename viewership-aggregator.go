@@ -334,9 +334,17 @@ func main() {
 
 	ReportFailedFiles(failedFilesList)
 
+	GenerateDailyAggregates(dateRangeRegexStr)
+
+	log.Printf("Processed %d MSO's, %d days, in %v\n", len(msoList), len(dateRangeRegexStr), time.Since(startTime))
+}
+
+// GenerateDailyAggregates will walk through day/mso files, and will aggregate/sort them
+func GenerateDailyAggregates(dateRangeRegexStr []string) {
 	log.Println("Starting reading/aggregating the results")
 
 	fileList := []string{}
+	var err error
 	err = filepath.Walk("cdw-viewership-reports/", func(path string, f os.FileInfo, err error) error {
 		fileList = append(fileList, path)
 		return nil
@@ -360,7 +368,7 @@ func main() {
 
 	sort.Sort(report)
 	PrintFinalReport(report, dateRangeRegexStr)
-	log.Printf("Processed %d MSO's, %d days, in %v\n", len(msoList), len(dateRangeRegexStr), time.Since(startTime))
+
 }
 
 func formatReportFilename(fileName, date string) string {
