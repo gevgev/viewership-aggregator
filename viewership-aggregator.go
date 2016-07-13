@@ -367,7 +367,11 @@ func GenerateDailyAggregates(dateRange []string) {
 					log.Println("Reading: ", file)
 				}
 				ss := ReadViewershipEntries(file)
+				before := len(report)
 				report = append(report, ss...)
+				if verbose {
+					log.Printf("Appending %d records from file %s. Before: %d, now: %d records\n", len(ss), file, before, len(report))
+				}
 			}
 		}
 
