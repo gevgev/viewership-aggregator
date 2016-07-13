@@ -21,7 +21,7 @@ d="$from"
 up=$(date -I -d "$to + 1 day")
 
 while [ "$d" != "$up" ]; do 
-  dd=$(date "$d" +%Y%m%d)
+  dd=$(date -d "$d" +%Y%m%d)
   mv viewership-report-"$dd".csv cdw-viewership-reports/"$dd"/
   d=$(date -I -d "$d + 1 day")
 done

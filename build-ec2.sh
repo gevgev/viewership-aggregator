@@ -19,6 +19,8 @@ echo "Copying script and mso list"
 cp ../run-aggregated-viewership-ubuntu.sh run.sh
 cp ../mso-list-full.csv mso-list.csv
 
+chmod u+x ./run.sh
+
 echo "Archiving"
 
 zip archive.zip *
