@@ -44,6 +44,7 @@ var (
 	msoListFilename string
 	maxAttempts     int
 	concurrency     int
+	daysAfter       int
 
 	verbose bool
 	appName string
@@ -64,6 +65,7 @@ func init() {
 	flagMsoFileName := flag.String("m", "mso-list.csv", "Filename for `MSO` list")
 	flagMaxAttempts := flag.Int("M", MAXATTEMPTS, "`Max attempts` to retry download from aws.s3")
 	flagConcurrency := flag.Int("c", 10, "The number of files to process `concurrent`ly")
+	flagDaysAfter := flag.Int("d", 2, "The number of days to go back for the report")
 	flagHelp := flag.Bool("h", false, "Help")
 
 	flagVerbose := flag.Bool("v", true, "`Verbose`: outputs to the screen")
@@ -83,6 +85,7 @@ func init() {
 		msoListFilename = *flagMsoFileName
 		maxAttempts = *flagMaxAttempts
 		concurrency = *flagConcurrency
+		daysAfter = *flagDaysAfter
 
 		verbose = *flagVerbose
 	} else {
@@ -94,17 +97,18 @@ func init() {
 func usage() {
 	fmt.Printf("%s, ver. %s\n", appName, version)
 	fmt.Println("Command line:")
-	fmt.Printf("\tprompt$>%s -r <aws_region> -b <s3_bucket_name> --from <date> --to <date> -m <mso-list-file-name> -M <max_retry>\n", appName)
+	fmt.Printf("\tprompt$>%s -r <aws_region> -b <s3_bucket_name> --from <date> --to <date> -d <days to aggregate> -m <mso-list-file-name> -M <max_retry>\n", appName)
 	flag.Usage()
 	os.Exit(-1)
 }
 
 func PrintParams() {
-	log.Printf("Provided: -r: %s, -b: %s, --from: %v, --to: %v, -m %s, -M %d, -v: %v\n",
+	log.Printf("Provided: -r: %s, -b: %s, -from: %v, -to: %v, -d %d -m %s, -M %d, -v: %v\n",
 		regionName,
 		bucketName,
 		dateFrom,
 		dateTo,
+		daysAfter,
 		msoListFilename,
 		maxAttempts,
 		verbose,
@@ -171,18 +175,21 @@ func convertToDateParts(dtStr string) (yy, mm, dd int) {
 }
 
 // a list of strings for each date in range to lookup
-func getDateRangeRegEx(dateFrom, dateTo string) []string {
+func getDateRange(dateFrom, dateTo string, daysAfter int) []string {
 
 	regExpStr := []string{}
 	//'20160630'
 	yy, mm, dd := convertToDateParts(dateFrom)
 	dtFrom := time.Date(yy, time.Month(mm), dd, 0, 0, 0, 0, time.UTC)
+
 	if verbose {
 		log.Println("From:", dtFrom.String())
 	}
 
 	yy, mm, dd = convertToDateParts(dateTo)
 	dtTo := time.Date(yy, time.Month(mm), dd, 0, 0, 0, 0, time.UTC)
+	dtTo = dtTo.AddDate(0, 0, daysAfter)
+
 	if verbose {
 		log.Println("To:", dtTo.String())
 	}
@@ -228,7 +235,7 @@ func main() {
 		PrintParams()
 	}
 
-	dateRangeRegexStr := getDateRangeRegEx(dateFrom, dateTo)
+	dateRange := getDateRange(dateFrom, dateTo, daysAfter)
 
 	failedFilesList := []string{}
 	var wg sync.WaitGroup
@@ -287,7 +294,7 @@ func main() {
 
 		for _, mso := range msoList {
 
-			for _, eachDate := range dateRangeRegexStr {
+			for _, eachDate := range dateRange {
 				// cdw-data-reports/20160601/ Armstrong-Butler/hhid_count- Armstrong-Butler-20160601.csv
 				lookupKey := fmt.Sprintf("%s-%s.csv", mso.Name, eachDate)
 
@@ -334,50 +341,77 @@ func main() {
 
 	ReportFailedFiles(failedFilesList)
 
-	GenerateDailyAggregates(dateRangeRegexStr)
+	GenerateDailyAggregates(dateFrom, dateRange, daysAfter)
 
-	log.Printf("Processed %d MSO's, %d days, in %v\n", len(msoList), len(dateRangeRegexStr), time.Since(startTime))
+	log.Printf("Processed %d MSO's, %d days, in %v\n", len(msoList), len(dateRange), time.Since(startTime))
 }
 
 // GenerateDailyAggregates will walk through day/mso files, and will aggregate/sort them
-func GenerateDailyAggregates(dateRange []string) {
+func GenerateDailyAggregates(dateFrom string, dateRange []string, daysForward int) {
 	log.Println("Starting reading/aggregating the results")
 	var wg sync.WaitGroup
 
-	for _, eachDay := range dateRange {
+	reportDay := dateFrom
+	reportIndex := 0
+
+	for i, eachDay := range dateRange {
 
 		fileList := []string{}
 		var err error
-		err = filepath.Walk("cdw-viewership-reports/"+eachDay+"/", func(path string, f os.FileInfo, err error) error {
-			if isFileToPush(path) {
-				fileList = append(fileList, path)
+
+		if eachDay == reportDay {
+
+			reportIndex = i
+
+			if verbose {
+				log.Printf("Adding %d files per MSO for reporting date: %v\n", daysForward+1, reportDay)
 			}
-			return nil
-		})
-
-		if err != nil {
-			log.Println("Error walking the provided path: ", err)
-		}
-
-		var report ReportEntryList
-
-		for _, file := range fileList {
-			if isFileToPush(file) {
+			// Adding files with the requested days before for THIS reporting day
+			for jj := reportIndex; jj <= reportIndex+daysForward; jj++ {
 				if verbose {
-					log.Println("Reading: ", file)
+					log.Printf("ReportDay: %s, ReportIndex: %d, DayForward: %d, jj: %d\n", reportDay, reportIndex, daysForward, jj)
+					log.Println(dateRange)
 				}
-				ss := ReadViewershipEntries(file)
-				before := len(report)
-				report = append(report, ss...)
-				if verbose {
-					log.Printf("Appending %d records from file %s. Before: %d, now: %d records\n", len(ss), file, before, len(report))
+				err = filepath.Walk("cdw-viewership-reports/"+dateRange[jj]+"/", func(path string, f os.FileInfo, err error) error {
+					if isFileToPush(path) {
+						fileList = append(fileList, path)
+						if verbose {
+							log.Printf("Added %s for reporting date: %v\n", path, reportDay)
+						}
+					}
+					return nil
+				})
+			}
+
+			if err != nil {
+				log.Println("Error walking the provided path: ", err)
+			}
+
+			var report ReportEntryList
+
+			for _, file := range fileList {
+				if isFileToPush(file) {
+					if verbose {
+						log.Println("Reading: ", file)
+					}
+					ss := ReadViewershipEntries(file)
+					before := len(report)
+					report = append(report, ss...)
+					if verbose {
+						log.Printf("Appending %d records from file %s. Before: %d, now: %d records\n", len(ss), file, before, len(report))
+					}
 				}
 			}
-		}
 
-		sort.Sort(report)
-		wg.Add(1)
-		go PrintFinalReport(report, eachDay, &wg)
+			sort.Sort(report)
+			wg.Add(1)
+			go PrintFinalReport(report, reportDay, &wg)
+
+			// Next report day
+			if reportIndex+1+daysAfter < len(dateRange) {
+				reportDay = dateRange[reportIndex+1]
+			}
+		}
 	}
 	wg.Wait()
 
@@ -393,7 +427,18 @@ func PrintFinalReport(report ReportEntryList, date string, wg *sync.WaitGroup) {
 	log.Println("Aggregated final for:", date)
 
 	reportFileName := formatReportFilename("viewership-report", date)
+	reportForDate := report.Filter(date)
+	if verbose {
+		log.Printf("Date: %s, number of records: %d\n", date, len(reportForDate))
+		//log.Println("Saving full dump:")
+		//saveCSV(date + "-full-dump.csv", report)
+	}
 
+	saveCSV(reportFileName, reportForDate)
+	log.Println("Saved the report in file: ", reportFileName)
+}
+
+func saveCSV(reportFileName string, reportForDate ReportEntryList) {
 	out, err := os.Create(reportFileName)
 	if err != nil {
 		log.Println("Error creating report:", err)
@@ -404,11 +449,6 @@ func PrintFinalReport(report ReportEntryList, date string, wg *sync.WaitGroup) {
 
 	writer := csv.NewWriter(out)
 
-	reportForDate := report.Filter(date)
-	if verbose {
-		log.Printf("Date: %s, number of records: %d\n", date, len(reportForDate))
-	}
-
 	writer.WriteAll(reportForDate.Convert())
 
 	if err := writer.Error(); err != nil {
@@ -416,7 +456,6 @@ func PrintFinalReport(report ReportEntryList, date string, wg *sync.WaitGroup) {
 		return
 	}
 
-	log.Println("Saved the report in file: ", reportFileName)
 }
 
 // hh_id, ts, pg_id, pg_name, ch_num, ch_name, event, zipcode, country
