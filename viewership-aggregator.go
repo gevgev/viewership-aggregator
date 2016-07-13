@@ -340,34 +340,42 @@ func main() {
 }
 
 // GenerateDailyAggregates will walk through day/mso files, and will aggregate/sort them
-func GenerateDailyAggregates(dateRangeRegexStr []string) {
+func GenerateDailyAggregates(dateRange []string) {
 	log.Println("Starting reading/aggregating the results")
+	var wg sync.WaitGroup
 
-	fileList := []string{}
-	var err error
-	err = filepath.Walk("cdw-viewership-reports/", func(path string, f os.FileInfo, err error) error {
-		fileList = append(fileList, path)
-		return nil
-	})
+	for _, eachDay := range dateRange {
 
-	if err != nil {
-		log.Fatalln("Error walking the provided path: ", err)
-	}
-
-	var report ReportEntryList
-
-	for _, file := range fileList {
-		if isFileToPush(file) {
-			if verbose {
-				log.Println("Reading: ", file)
+		fileList := []string{}
+		var err error
+		err = filepath.Walk("cdw-viewership-reports/"+eachDay+"/", func(path string, f os.FileInfo, err error) error {
+			if isFileToPush(path) {
+				fileList = append(fileList, path)
 			}
-			ss := ReadViewershipEntries(file)
-			report = append(report, ss...)
-		}
-	}
+			return nil
+		})
 
-	sort.Sort(report)
-	PrintFinalReport(report, dateRangeRegexStr)
+		if err != nil {
+			log.Println("Error walking the provided path: ", err)
+		}
+
+		var report ReportEntryList
+
+		for _, file := range fileList {
+			if isFileToPush(file) {
+				if verbose {
+					log.Println("Reading: ", file)
+				}
+				ss := ReadViewershipEntries(file)
+				report = append(report, ss...)
+			}
+		}
+
+		sort.Sort(report)
+		wg.Add(1)
+		go PrintFinalReport(report, eachDay, &wg)
+	}
+	wg.Wait()
 
 }
 
@@ -375,44 +383,36 @@ func formatReportFilename(fileName, date string) string {
 	return fmt.Sprintf("%s-%s.csv", fileName, date)
 }
 
-func PrintFinalReport(report ReportEntryList, dateRange []string) {
-	log.Println("Aggregated final:")
-	var wg sync.WaitGroup
+func PrintFinalReport(report ReportEntryList, date string, wg *sync.WaitGroup) {
+	defer wg.Done()
 
-	for _, eachDate := range dateRange {
-		wg.Add(1)
-		go func(date string) {
-			reportFileName := formatReportFilename("viewership-report", date)
+	log.Println("Aggregated final for:", date)
 
-			out, err := os.Create(reportFileName)
-			if err != nil {
-				log.Println("Error creating report:", err)
-			}
+	reportFileName := formatReportFilename("viewership-report", date)
 
-			defer func() {
-				out.Close()
-				wg.Done()
-			}()
-
-			writer := csv.NewWriter(out)
-
-			reportForDate := report.Filter(date)
-			if verbose {
-				log.Printf("Date: %s, number of records: %d\n", date, len(reportForDate))
-			}
-
-			writer.WriteAll(reportForDate.Convert())
-
-			if err := writer.Error(); err != nil {
-				log.Fatalln("error writing csv:", err)
-			}
-
-			log.Println("Saved the report in file: ", reportFileName)
-
-		}(eachDate)
+	out, err := os.Create(reportFileName)
+	if err != nil {
+		log.Println("Error creating report:", err)
+		return
 	}
 
-	wg.Wait()
+	defer out.Close()
+
+	writer := csv.NewWriter(out)
+
+	reportForDate := report.Filter(date)
+	if verbose {
+		log.Printf("Date: %s, number of records: %d\n", date, len(reportForDate))
+	}
+
+	writer.WriteAll(reportForDate.Convert())
+
+	if err := writer.Error(); err != nil {
+		log.Println("error writing csv:", err)
+		return
+	}
+
+	log.Println("Saved the report in file: ", reportFileName)
 }
 
 // hh_id, ts, pg_id, pg_name, ch_num, ch_name, event, zipcode, country
