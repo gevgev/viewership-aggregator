@@ -2,7 +2,7 @@
 
 Steps:
   1. Build/package for ec2 linux:
-      $> ./build-ec2.sh
+      - $> ./build-ec2.sh
   2. Launch ec2 instance:
       - r3.2xlarge
       - 500GB EBS
