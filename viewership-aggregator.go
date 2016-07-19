@@ -343,6 +343,7 @@ func main() {
 	close(failedFilesChan)
 	close(downloadedReportChannel)
 	<-countingDone
+	close(countingDone)
 
 	ReportFailedFiles(failedFilesList)
 
