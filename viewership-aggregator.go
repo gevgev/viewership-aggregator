@@ -91,6 +91,11 @@ func init() {
 
 		verbose = *flagVerbose
 		testRun = *flagTestRun
+
+		if verbose {
+			fmt.Printf("Provided From: %s, converted to %s\n", *flagDateFrom, dateFrom)
+			fmt.Printf("Provided To: %s, converted to %s\n", *flagDateTo, dateTo)
+		}
 	} else {
 		usage()
 	}
@@ -156,6 +161,9 @@ func formatPrefix(path, msoCode string) string {
 
 // converts/breaks the "20160601" string into yy, mm, dd
 func convertToDateParts(dtStr string) (yy, mm, dd int) {
+	// 0123 45 67
+	// 2016 06 01
+	//
 	yy, mm, dd = 0, 0, 0
 	i, err := strconv.Atoi(dtStr[:4])
 	if err != nil {
@@ -169,7 +177,7 @@ func convertToDateParts(dtStr string) (yy, mm, dd int) {
 	}
 	mm = i
 
-	i, err = strconv.Atoi(dtStr[7:])
+	i, err = strconv.Atoi(dtStr[6:])
 	if err != nil {
 		return yy, mm, dd
 	}
@@ -185,18 +193,28 @@ func getDateRange(dateFrom, dateTo string, daysAfter int) []string {
 	//'20160630'
 	yy, mm, dd := convertToDateParts(dateFrom)
 	dtFrom := time.Date(yy, time.Month(mm), dd, 0, 0, 0, 0, time.UTC)
+	if verbose {
+		log.Printf("Provided From: string:%s, parsed into: %d, %d, %d, converted into %v\n",
+			dateFrom, yy, mm, dd, dtFrom.String())
+	}
+
 	dtFrom = dtFrom.AddDate(0, 0, -1)
 
 	if verbose {
-		log.Println("From:", dtFrom.String())
+		log.Println("Working From:", dtFrom.String())
 	}
 
 	yy, mm, dd = convertToDateParts(dateTo)
 	dtTo := time.Date(yy, time.Month(mm), dd, 0, 0, 0, 0, time.UTC)
+
+	if verbose {
+		log.Printf("Provided To: string:%s, parsed into: %d, %d, %d, converted into %v\n",
+			dateTo, yy, mm, dd, dtTo.String())
+	}
 	dtTo = dtTo.AddDate(0, 0, daysAfter)
 
 	if verbose {
-		log.Println("To:", dtTo.String())
+		log.Println("Working To:", dtTo.String())
 	}
 
 	dt := dtFrom
