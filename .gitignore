@@ -10,3 +10,4 @@ event/
 cdw-viewership-reports/
 viewership-report*
 build-ec2/
+build-data-pipeline/

@@ -1,6 +1,13 @@
 # viewership-aggregator
 
 Steps:
+For data-pipeline:
+  1. Build: 
+    - ./build-data-pipeline.sh
+  2. Run:
+    - ./loop.sh
+
+For ec-2:
   1. Build/package for ec2 linux:
       - $> ./build-ec2.sh
   2. Launch ec2 instance:
