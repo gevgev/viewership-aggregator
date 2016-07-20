@@ -31,6 +31,10 @@ cp ../run-pipeline.sh loop.sh
 chmod u+x ./run.sh
 chmod u+x ./loop.sh
 
+echo "Pushing to S3"
+
+aws s3 cp . s3://daap-pipeline/viewership-aggregator --recursive
+
 echo "Archiving"
 
 zip archive-aggregator.zip *
