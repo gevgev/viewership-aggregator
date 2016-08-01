@@ -198,12 +198,6 @@ func getDateRange(dateFrom, dateTo string, daysAfter int) []string {
 			dateFrom, yy, mm, dd, dtFrom.String())
 	}
 
-	dtFrom = dtFrom.AddDate(0, 0, -1)
-
-	if verbose {
-		log.Println("Working From:", dtFrom.String())
-	}
-
 	yy, mm, dd = convertToDateParts(dateTo)
 	dtTo := time.Date(yy, time.Month(mm), dd, 0, 0, 0, 0, time.UTC)
 
@@ -211,9 +205,18 @@ func getDateRange(dateFrom, dateTo string, daysAfter int) []string {
 		log.Printf("Provided To: string:%s, parsed into: %d, %d, %d, converted into %v\n",
 			dateTo, yy, mm, dd, dtTo.String())
 	}
+
+	if dtFrom.After(dtTo) || dtFrom.Equal(dtTo) {
+		log.Printf("Date from %v is greater or equal than date to: %v\n", dtFrom, dtTo)
+		log.Println("Nothing to do")
+		os.Exit(-1)
+	}
+
+	dtFrom = dtFrom.AddDate(0, 0, -1)
 	dtTo = dtTo.AddDate(0, 0, daysAfter)
 
 	if verbose {
+		log.Println("Working From:", dtFrom.String())
 		log.Println("Working To:", dtTo.String())
 	}
 
