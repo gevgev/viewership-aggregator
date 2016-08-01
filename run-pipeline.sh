@@ -16,4 +16,15 @@ to=${results[2]}
 
 echo $from, $to
 
+
+dateFrom=$(date -d "$from" +%s)
+dateTo=$(date -d "$to" +%s)
+
+if [ $dateFrom -ge $dateTo ]; then
+        echo "No need to run"
+        exit 0
+else
+    	echo "running"
+fi
+
 ./run.sh $from $to
