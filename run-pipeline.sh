@@ -20,7 +20,7 @@ echo $from, $to
 dateFrom=$(date -d "$from" +%s)
 dateTo=$(date -d "$to" +%s)
 
-if [ $dateFrom -ge $dateTo ]; then
+if [ $dateFrom -gt $dateTo ]; then
         echo "No need to run"
         exit 0
 else
