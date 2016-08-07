@@ -206,7 +206,7 @@ func getDateRange(dateFrom, dateTo string, daysAfter int) []string {
 			dateTo, yy, mm, dd, dtTo.String())
 	}
 
-	if dtFrom.After(dtTo) || dtFrom.Equal(dtTo) {
+	if dtFrom.After(dtTo) { // || dtFrom.Equal(dtTo) {
 		log.Printf("Date from %v is greater or equal than date to: %v\n", dtFrom, dtTo)
 		log.Println("Nothing to do")
 		os.Exit(-1)
