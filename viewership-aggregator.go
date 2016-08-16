@@ -32,7 +32,8 @@ func formatDate(date string) string {
 }
 
 const (
-	version     = "0.1"
+	version = "0.1"
+	// MAXATTEMPTS max attempts to download file from AWS S3
 	MAXATTEMPTS = 3
 )
 
@@ -53,6 +54,7 @@ var (
 	failedFilesChan         chan string
 	downloadedReportChannel chan bool
 
+	// MSOLookup is map of MSO IDs to MSO names
 	MSOLookup map[string]string
 	msoList   []MsoType
 )
@@ -110,6 +112,7 @@ func usage() {
 	os.Exit(-1)
 }
 
+// PrintParams prints out the parameters provided to the app
 func PrintParams() {
 	log.Printf("Provided: -r: %s, -b: %s, -from: %v, -to: %v, -d %d -m %s, -M %d, -v: %v\n",
 		regionName,
@@ -124,12 +127,13 @@ func PrintParams() {
 
 }
 
+// MsoType aggregates MSO code and name
 type MsoType struct {
 	Code string
 	Name string
 }
 
-// Read the list of MSO's and initialize the lookup map and array
+// getMsoNamesList reads the list of MSO's and initialize the lookup map and array
 func getMsoNamesList() ([]MsoType, map[string]string) {
 	msoList := []MsoType{}
 	msoLookup := make(map[string]string)
@@ -154,12 +158,12 @@ func getMsoNamesList() ([]MsoType, map[string]string) {
 	return msoList, msoLookup
 }
 
-// path per mso
+// formatPrefix formats path per mso
 func formatPrefix(path, msoCode string) string {
 	return fmt.Sprintf("%s/%s/delta/", path, msoCode)
 }
 
-// converts/breaks the "20160601" string into yy, mm, dd
+// convertToDateParts converts/breaks the "20160601" string into yy, mm, dd
 func convertToDateParts(dtStr string) (yy, mm, dd int) {
 	// 0123 45 67
 	// 2016 06 01
@@ -185,6 +189,7 @@ func convertToDateParts(dtStr string) (yy, mm, dd int) {
 	return yy, mm, dd
 }
 
+// getDateRange generates
 // a list of strings for each date in range to lookup
 // starting one day before (from - 1) -to- N daysAfter (to + daysAfter)
 func getDateRange(dateFrom, dateTo string, daysAfter int) []string {
@@ -368,7 +373,7 @@ func main() {
 
 	ReportFailedFiles(failedFilesList)
 
-	GenerateDailyAggregates(dateFrom, dateRange, daysAfter)
+	//GenerateDailyAggregates(dateFrom, dateRange, daysAfter)
 
 	log.Printf("Processed %d MSO's, %d days, in %v\n", len(msoList), len(dateRange), time.Since(startTime))
 }
@@ -458,6 +463,7 @@ func formatReportFilename(fileName, date string) string {
 	return fmt.Sprintf("%s-%s.csv", fileName, date)
 }
 
+// PrintFinalReport prints the summary of app run
 func PrintFinalReport(report ReportEntryList, date string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -498,10 +504,9 @@ func saveCSV(reportFileName string, reportForDate ReportEntryList) {
 
 }
 
+// ReportEntry struct for the aggregated repprt entry
 // hh_id, ts, pg_id, pg_name, ch_num, ch_name, event, zipcode, country
 // 112961,2016-07-02 23:21:58,975540,"Oklahoma News Report",3,KETA,watch,79081,USA
-
-//aggregated reported entry
 type ReportEntry struct {
 	hh_id   string
 	ts      string
@@ -514,9 +519,10 @@ type ReportEntry struct {
 	country string
 }
 
+// ReportEntryList list of ReportEntry
 type ReportEntryList []ReportEntry
 
-// convert []ReportEntry into [][]string for csv file
+// Convert converts []ReportEntry into [][]string for csv file
 func (report ReportEntryList) Convert() [][]string {
 	header := []string{"ts", "hh_id", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"}
 	bodyAll := [][]string{}
@@ -540,18 +546,22 @@ func (report ReportEntryList) Convert() [][]string {
 	return bodyAll
 }
 
+// Len returns the length of the list - for Sortable Interface
 func (list ReportEntryList) Len() int {
 	return len(list)
 }
 
+// Less returns if a[i]<a[j] - for Sortable Interface
 func (list ReportEntryList) Less(i, j int) bool {
 	return list[i].ts < list[j].ts
 }
 
+// Swap swaps elements i and j - for Sortable Interface
 func (list ReportEntryList) Swap(i, j int) {
 	list[i], list[j] = list[j], list[i]
 }
 
+// Filter returns only the entries for given date
 func (report ReportEntryList) Filter(date string) ReportEntryList {
 	var reportForDate ReportEntryList
 	// 0123 45 67
@@ -568,7 +578,7 @@ func (report ReportEntryList) Filter(date string) ReportEntryList {
 	return reportForDate
 }
 
-// Read hh count from a single file
+// ReadViewershipEntries reads hh count from a single file
 func ReadViewershipEntries(fileName string) []ReportEntry {
 	entries := []ReportEntry{}
 
@@ -604,6 +614,7 @@ func isFileToPush(fileName string) bool {
 	return filepath.Ext(fileName) == ".csv"
 }
 
+// ReportFailedFiles prints the report of failed to download files if any
 func ReportFailedFiles(failedFilesList []string) {
 	if len(failedFilesList) > 0 {
 		for _, key := range failedFilesList {
@@ -618,7 +629,7 @@ func processSingleDownload(key string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for i := 0; i < maxAttempts; i++ {
 		log.Println("Downloading: ", key)
-		if downloadFile(key) && unzipFile(key) {
+		if downloadFile(key) && unzipAndSortFile(key) {
 			if verbose {
 				log.Println("Successfully downloaded: ", key)
 			}
@@ -673,6 +684,69 @@ func downloadFile(filename string) bool {
 	return true
 }
 
+// unzipAndFilterSort unzips, sorts, and saves the original file:
+// 1. unzips into memory, convert into reportList
+// REMOVED 2. filters by the provided date
+// 3. sorts the file
+// 4. saves it
+func unzipAndSortFile(fileName string) bool {
+	// removing the filter part
+	//date = date[:4] + "-" + date[4:6] + "-" + date[6:8]
+
+	// 1. unzip the file
+	handle, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0660)
+
+	if err != nil {
+		log.Println("Error opening gzip file: ", err)
+		return false
+	}
+
+	zipReader, err := gzip.NewReader(handle)
+	if err != nil {
+		log.Println("Error: ", err)
+		return false
+	}
+
+	defer zipReader.Close()
+
+	// 1a. convert it into reportList and filter by date
+	r := csv.NewReader(zipReader)
+	records, err := r.ReadAll()
+	if err != nil {
+		log.Printf("Could not read viewership file: %s, Error: %s\n", fileName, err)
+		return false
+	}
+
+	var entries ReportEntryList
+
+	for i, record := range records {
+		// Skipping the first line - header
+		if i > 0 {
+			// 	---			---			0		1		2		3			4		5			6		7			8
+			// 						 "hh_id", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"
+			// FILTER - if the date is for the report date:
+			// Removing Fiter part
+			//if strings.Contains(record[1], date) {
+			entries = append(entries, ReportEntry{record[0], record[1], record[2], record[3], record[4], record[5], record[6], record[7], record[8]})
+			//}
+		}
+	}
+
+	// 3. Sort the entries
+	sort.Sort(entries)
+
+	// 4. Save the file back
+	saveCSV(strings.TrimSuffix(fileName, ".gzip"), entries)
+
+	if verbose {
+		log.Printf("Read: %d entries from %s \n", len(records), fileName)
+	}
+
+	return true
+
+}
+
+// unzipFile unzips and saves the .csv.gzip file into .csv file
 func unzipFile(fileName string) bool {
 	handle, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0660)
 
@@ -705,6 +779,7 @@ func unzipFile(fileName string) bool {
 	return SaveUnzippedContent(fileName, fileContents)
 }
 
+// SaveUnzippedContent saves the unzipped content
 func SaveUnzippedContent(fileName string, fileContents []byte) bool {
 	unzippedFileName := strings.TrimSuffix(fileName, ".gzip")
 	if verbose {
