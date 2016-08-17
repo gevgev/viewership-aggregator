@@ -378,6 +378,11 @@ func main() {
 	log.Printf("Processed %d MSO's, %d days, in %v\n", len(msoList), len(dateRange), time.Since(startTime))
 }
 
+// GenerateDailyAggregatesMergeSort generates the aggregated reports using merge-sort from files
+func GenerateDailyAggregatesMergeSort(dateFrom string, dateRange []string, daysForward int) {
+
+}
+
 // GenerateDailyAggregates will walk through day/mso files, and will aggregate/sort them
 func GenerateDailyAggregates(dateFrom string, dateRange []string, daysForward int) {
 	log.Println("Starting reading/aggregating the results")
