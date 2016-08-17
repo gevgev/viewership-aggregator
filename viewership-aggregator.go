@@ -374,13 +374,67 @@ func main() {
 	ReportFailedFiles(failedFilesList)
 
 	//GenerateDailyAggregates(dateFrom, dateRange, daysAfter)
+	GenerateDailyAggregatesMergeSort(dateFrom, dateRange, daysAfter)
 
 	log.Printf("Processed %d MSO's, %d days, in %v\n", len(msoList), len(dateRange), time.Since(startTime))
 }
 
 // GenerateDailyAggregatesMergeSort generates the aggregated reports using merge-sort from files
 func GenerateDailyAggregatesMergeSort(dateFrom string, dateRange []string, daysForward int) {
+	log.Println("Starting reading/aggregating the results")
 
+	reportDay := dateFrom
+	reportIndex := 0
+
+	for i, eachDay := range dateRange {
+
+		fileList := []string{}
+		var err error
+
+		if eachDay == reportDay {
+
+			reportIndex = i
+
+			if verbose {
+				log.Printf("Adding %d files per MSO for reporting date: %v\n", daysForward+1, reportDay)
+			}
+			// Adding files with the requested days before for THIS reporting day
+			// Starting one day before -1 -up-to- N daysForward
+			for jj := reportIndex - 1; jj <= reportIndex+daysForward; jj++ {
+				if verbose {
+					log.Printf("ReportDay: %s, ReportIndex: %d, DayForward: %d, jj: %d\n", reportDay, reportIndex, daysForward, jj)
+					log.Println(dateRange)
+				}
+				err = filepath.Walk("cdw-viewership-reports/"+dateRange[jj]+"/", func(path string, f os.FileInfo, err error) error {
+					if isFileToPush(path) {
+						fileList = append(fileList, path)
+						if verbose {
+							log.Printf("Added %s for reporting date: %v\n", path, reportDay)
+						}
+					}
+					return nil
+				})
+			}
+
+			if err != nil {
+				log.Println("Error walking the provided path: ", err)
+			}
+
+			// Now start processing the files to generate the aggregated reports
+			filesPack := NewFilesPack(fileList)
+			aggregatedReport, err := NewAggregatedReport(formatReportFilename("viewership-report", reportDay))
+			if err == nil {
+				aggregatedReport.ProcessFiles(filesPack, reportDay)
+			} else {
+				log.Printf("Error while creating aggregator: ", err)
+			}
+
+			// Next report day
+			if reportIndex+1+daysAfter < len(dateRange) {
+				reportDay = dateRange[reportIndex+1]
+			}
+		}
+	}
 }
 
 // GenerateDailyAggregates will walk through day/mso files, and will aggregate/sort them
@@ -500,7 +554,7 @@ func saveCSV(reportFileName string, reportForDate ReportEntryList) {
 
 	writer := csv.NewWriter(out)
 
-	writer.WriteAll(reportForDate.Convert())
+	writer.WriteAll(reportForDate.Convert(true, true))
 
 	if err := writer.Error(); err != nil {
 		log.Println("error writing csv:", err)
@@ -528,11 +582,18 @@ type ReportEntry struct {
 type ReportEntryList []ReportEntry
 
 // Convert converts []ReportEntry into [][]string for csv file
-func (report ReportEntryList) Convert() [][]string {
+func (report ReportEntryList) Convert(headerOn bool, addQuotes bool) [][]string {
 	header := []string{"ts", "hh_id", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"}
 	bodyAll := [][]string{}
+	quotes := ""
 
-	bodyAll = append(bodyAll, header)
+	if headerOn {
+		bodyAll = append(bodyAll, header)
+	}
+
+	if addQuotes {
+		quotes = "\""
+	}
 
 	for _, entry := range report {
 		bodyAll = append(bodyAll,
@@ -540,7 +601,7 @@ func (report ReportEntryList) Convert() [][]string {
 				entry.ts,
 				entry.hh_id,
 				entry.pg_id,
-				`"` + entry.pg_name + `"`,
+				quotes + entry.pg_name + quotes,
 				entry.ch_num,
 				entry.ch_name,
 				entry.event,
@@ -552,18 +613,18 @@ func (report ReportEntryList) Convert() [][]string {
 }
 
 // Len returns the length of the list - for Sortable Interface
-func (list ReportEntryList) Len() int {
-	return len(list)
+func (report ReportEntryList) Len() int {
+	return len(report)
 }
 
 // Less returns if a[i]<a[j] - for Sortable Interface
-func (list ReportEntryList) Less(i, j int) bool {
-	return list[i].ts < list[j].ts
+func (report ReportEntryList) Less(i, j int) bool {
+	return report[i].ts < report[j].ts
 }
 
 // Swap swaps elements i and j - for Sortable Interface
-func (list ReportEntryList) Swap(i, j int) {
-	list[i], list[j] = list[j], list[i]
+func (report ReportEntryList) Swap(i, j int) {
+	report[i], report[j] = report[j], report[i]
 }
 
 // Filter returns only the entries for given date
