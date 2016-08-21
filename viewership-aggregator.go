@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -326,7 +325,7 @@ func main() {
 		for _, mso := range msoList {
 
 			for _, eachDate := range dateRange {
-				// cdw-data-reports/20160601/ Armstrong-Butler/hhid_count- Armstrong-Butler-20160601.csv
+				// cdw-data-reports/20160601/ Armstrong-Butler/tv_viewreship-Armstrong-Butler-20160601.csv
 				lookupKey := fmt.Sprintf("%s-%s.csv", mso.Name, eachDate)
 
 				if verbose {
@@ -720,71 +719,11 @@ func unzipAndSortFile(fileName string) bool {
 	sort.Sort(entries)
 
 	// 4. Save the file back
-	saveCSV(strings.TrimSuffix(fileName, ".gzip"), entries)
+	saveCSV(strings.TrimSuffix(fileName, ".gz"), entries)
 
 	if verbose {
 		log.Printf("Read: %d entries from %s \n", len(records), fileName)
 	}
-
-	return true
-
-}
-
-// unzipFile unzips and saves the .csv.gzip file into .csv file
-func unzipFile(fileName string) bool {
-	handle, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0660)
-
-	if err != nil {
-		log.Println("Error opening gzip file: ", err)
-		return false
-	}
-
-	zipReader, err := gzip.NewReader(handle)
-	if err != nil {
-		log.Println("Error: ", err)
-		return false
-	}
-
-	defer zipReader.Close()
-
-	fileContents, err := ioutil.ReadAll(zipReader)
-
-	if err != nil {
-		log.Println("Error ReadAll: ", err)
-		return false
-	}
-
-	err = handle.Close()
-	if err != nil {
-		log.Println("Error closing file: ", err)
-		return false
-	}
-
-	return SaveUnzippedContent(fileName, fileContents)
-}
-
-// SaveUnzippedContent saves the unzipped content
-func SaveUnzippedContent(fileName string, fileContents []byte) bool {
-	unzippedFileName := strings.TrimSuffix(fileName, ".gzip")
-	if verbose {
-		log.Printf("Unzipping %s into %s\n", fileName, unzippedFileName)
-	}
-
-	file, err := os.Create(unzippedFileName)
-
-	defer file.Close()
-
-	if err != nil {
-		log.Println("Failed creating unzipped file: ", err)
-		return false
-	}
-
-	if _, err := file.Write(fileContents); err != nil {
-		log.Println("Error writing unzipped content: ", err)
-		return false
-	}
-
-	file.Sync()
 
 	return true
 }
