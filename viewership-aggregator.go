@@ -373,7 +373,6 @@ func main() {
 
 	ReportFailedFiles(failedFilesList)
 
-	//GenerateDailyAggregates(dateFrom, dateRange, daysAfter)
 	GenerateDailyAggregatesMergeSort(dateFrom, dateRange, daysAfter)
 
 	log.Printf("Processed %d MSO's, %d days, in %v\n", len(msoList), len(dateRange), time.Since(startTime))
@@ -435,87 +434,6 @@ func GenerateDailyAggregatesMergeSort(dateFrom string, dateRange []string, daysF
 			}
 		}
 	}
-}
-
-// GenerateDailyAggregates will walk through day/mso files, and will aggregate/sort them
-func GenerateDailyAggregates(dateFrom string, dateRange []string, daysForward int) {
-	log.Println("Starting reading/aggregating the results")
-	var wg, wgAppend sync.WaitGroup
-	var mu sync.Mutex
-
-	reportDay := dateFrom
-	reportIndex := 0
-
-	for i, eachDay := range dateRange {
-
-		fileList := []string{}
-		var err error
-
-		if eachDay == reportDay {
-
-			reportIndex = i
-
-			if verbose {
-				log.Printf("Adding %d files per MSO for reporting date: %v\n", daysForward+1, reportDay)
-			}
-			// Adding files with the requested days before for THIS reporting day
-			// Starting one day before -1 -up-to- N daysForward
-			for jj := reportIndex - 1; jj <= reportIndex+daysForward; jj++ {
-				if verbose {
-					log.Printf("ReportDay: %s, ReportIndex: %d, DayForward: %d, jj: %d\n", reportDay, reportIndex, daysForward, jj)
-					log.Println(dateRange)
-				}
-				err = filepath.Walk("cdw-viewership-reports/"+dateRange[jj]+"/", func(path string, f os.FileInfo, err error) error {
-					if isFileToPush(path) {
-						fileList = append(fileList, path)
-						if verbose {
-							log.Printf("Added %s for reporting date: %v\n", path, reportDay)
-						}
-					}
-					return nil
-				})
-			}
-
-			if err != nil {
-				log.Println("Error walking the provided path: ", err)
-			}
-
-			var report ReportEntryList
-
-			for _, file := range fileList {
-				if isFileToPush(file) {
-					wgAppend.Add(1)
-					go func(fileName string) {
-						if verbose {
-							log.Println("Reading: ", fileName)
-						}
-						ss := ReadViewershipEntries(fileName)
-						mu.Lock()
-						before := len(report)
-						report = append(report, ss...)
-						if verbose {
-							log.Printf("Appending %d records from file %s. Before: %d, now: %d records\n", len(ss), file, before, len(report))
-						}
-						mu.Unlock()
-						wgAppend.Done()
-					}(file)
-				}
-			}
-
-			wgAppend.Wait()
-
-			sort.Sort(report)
-			wg.Add(1)
-			go PrintFinalReport(report, reportDay, &wg)
-
-			// Next report day
-			if reportIndex+1+daysAfter < len(dateRange) {
-				reportDay = dateRange[reportIndex+1]
-			}
-		}
-	}
-	wg.Wait()
-
 }
 
 func formatReportFilename(fileName, date string) string {
