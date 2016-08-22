@@ -94,8 +94,8 @@ func init() {
 		testRun = *flagTestRun
 
 		if verbose {
-			fmt.Printf("Provided From: %s, converted to %s\n", *flagDateFrom, dateFrom)
-			fmt.Printf("Provided To: %s, converted to %s\n", *flagDateTo, dateTo)
+			log.Printf("Provided From: %s, converted to %s\n", *flagDateFrom, dateFrom)
+			log.Printf("Provided To: %s, converted to %s\n", *flagDateTo, dateTo)
 		}
 	} else {
 		usage()
@@ -130,6 +130,15 @@ func PrintParams() {
 type MsoType struct {
 	Code string
 	Name string
+}
+
+func getMsoCode(mso string) string {
+	for msoCode, msoName := range MSOLookup {
+		if msoName == mso {
+			return msoCode
+		}
+	}
+	return ""
 }
 
 // getMsoNamesList reads the list of MSO's and initialize the lookup map and array
@@ -386,7 +395,10 @@ func GenerateDailyAggregatesMergeSort(dateFrom string, dateRange []string, daysF
 
 	for i, eachDay := range dateRange {
 
-		fileList := []string{}
+		fileList := make(map[string][]string)
+		for _, mso := range msoList {
+			fileList[mso.Name] = []string{}
+		}
 		var err error
 
 		if eachDay == reportDay {
@@ -405,7 +417,12 @@ func GenerateDailyAggregatesMergeSort(dateFrom string, dateRange []string, daysF
 				}
 				err = filepath.Walk("cdw-viewership-reports/"+dateRange[jj]+"/", func(path string, f os.FileInfo, err error) error {
 					if isFileToPush(path) {
-						fileList = append(fileList, path)
+						// s3://daap-viewership-reports/cdw-viewership-reports/20160814/Armstrong-Butler/tv_viewership-Armstrong-Butler-20160814.csv
+						// 2016/07/31 18:23:39 Key:  cdw-viewership-reports/20160601/Armstrong-Butler/tv_viewership-Armstrong-Butler-20160601.csv.gzip
+						// 2016/07/31 18:23:39 Lookup key:  HTC-20160727.csv
+						// 2016/07/31 18:23:39 Lookup key:  HTC-20160728.csv
+						msoName := strings.Split(path, "/")[2]
+						fileList[msoName] = append(fileList[msoName], path)
 						if verbose {
 							log.Printf("Added %s for reporting date: %v\n", path, reportDay)
 						}
@@ -423,6 +440,7 @@ func GenerateDailyAggregatesMergeSort(dateFrom string, dateRange []string, daysF
 			aggregatedReport, err := NewAggregatedReport(formatReportFilename("viewership-report", reportDay))
 			if err == nil {
 				aggregatedReport.ProcessFiles(filesPack, reportDay)
+				aggregatedReport.ReportHHCounts()
 			} else {
 				log.Printf("Error while creating aggregator: ", err)
 			}
@@ -719,7 +737,13 @@ func unzipAndSortFile(fileName string) bool {
 	sort.Sort(entries)
 
 	// 4. Save the file back
-	saveCSV(strings.TrimSuffix(fileName, ".gz"), entries)
+	newFileName := ""
+	if strings.Contains(fileName, ".gzip") {
+		newFileName = strings.TrimSuffix(fileName, ".gzip")
+	} else if strings.Contains(fileName, ".gz") {
+		newFileName = strings.TrimSuffix(fileName, ".gz")
+	}
+	saveCSV(newFileName, entries)
 
 	if verbose {
 		log.Printf("Read: %d entries from %s \n", len(records), fileName)

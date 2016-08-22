@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -151,17 +153,21 @@ func (file *FileStruct) Ended() bool {
 
 // FilesPack aggregates a collection of source files to be merge-sorted
 type FilesPack struct {
-	files []*FileStruct
+	files map[string][]*FileStruct
 }
 
 // NewFilesPack creates and initializes new pack of files
-func NewFilesPack(fileNames []string) *FilesPack {
+func NewFilesPack(fileNames map[string][]string) *FilesPack {
 	filePack := &FilesPack{}
 
-	for _, fileName := range fileNames {
-		fileStruct := NewFileStruct(fileName)
-		if fileStruct.Init() {
-			filePack.files = append(filePack.files, fileStruct)
+	filePack.files = make(map[string][]*FileStruct)
+	for mso, files := range fileNames {
+		filePack.files[mso] = []*FileStruct{}
+		for _, fileName := range files {
+			fileStruct := NewFileStruct(fileName)
+			if fileStruct.Init() {
+				filePack.files[mso] = append(filePack.files[mso], fileStruct)
+			}
 		}
 	}
 
@@ -169,39 +175,46 @@ func NewFilesPack(fileNames []string) *FilesPack {
 }
 
 // NextMinItem returns the next report entry accross all files in the pack, having the min timestamp
-func (filePack *FilesPack) NextMinItem() ReportEntry {
+// along with MSO name for that entry
+func (filePack *FilesPack) NextMinItem() (ReportEntry, string) {
 	minTimestamp := "9999-99-99 99:99:99"
+	minMso := ""
 	minIndex := -1
 
-	for i, file := range filePack.files {
-		if !file.Ended() {
-			ts, err := file.PeekNextItemTimestamp()
+	for mso, files := range filePack.files {
+		for i, file := range files {
+			if !file.Ended() {
+				ts, err := file.PeekNextItemTimestamp()
 
-			if err != nil {
-				continue
-			}
+				if err != nil {
+					continue
+				}
 
-			if ts < minTimestamp {
-				minTimestamp = ts
-				minIndex = i
+				if ts < minTimestamp {
+					minTimestamp = ts
+					minMso = mso
+					minIndex = i
+				}
 			}
 		}
 	}
 
-	if minIndex > -1 {
-		return filePack.files[minIndex].PopNextItem()
+	if minMso != "" {
+		return filePack.files[minMso][minIndex].PopNextItem(), minMso
 	}
 
-	return noValueEntry
+	return noValueEntry, ""
 }
 
 // ----------------------------------------------------------------------
 
 // AggregatedReport wraps a file allowing buffered writes into the resulting file
 type AggregatedReport struct {
-	file     *os.File
-	filename string
-	buffer   ReportEntryList
+	file       *os.File
+	filename   string
+	buffer     ReportEntryList
+	hhCounts   map[string]map[string]bool
+	reportDate string
 }
 
 // NewAggregatedReport creates and initializes an instance of aggregeted report file
@@ -220,8 +233,14 @@ func NewAggregatedReport(fileName string) (*AggregatedReport, error) {
 
 	// write the header to the file
 	header := [][]string{{"ts", "hh_id", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"}}
-	write(aggregatedReport.filename, header)
+	if !write(aggregatedReport.filename, header, false) {
+		return nil, errors.New("Could not create aggregated file:" + aggregatedReport.filename)
+	}
 
+	aggregatedReport.hhCounts = make(map[string]map[string]bool)
+	for _, mso := range msoList {
+		aggregatedReport.hhCounts[mso.Name] = make(map[string]bool)
+	}
 	return aggregatedReport, nil
 }
 
@@ -231,23 +250,35 @@ func (aggregated *AggregatedReport) ProcessFiles(pack *FilesPack, forDate string
 	// 0123 45 67
 	// 2016 06 01
 	// 2016-06-01
-	date := forDate[:4] + "-" + forDate[4:6] + "-" + forDate[6:8]
+	aggregated.reportDate = forDate[:4] + "-" + forDate[4:6] + "-" + forDate[6:8]
 
 	for {
-		nextItem := pack.NextMinItem()
+		nextItem, mso := pack.NextMinItem()
 
 		if nextItem == noValueEntry {
 			aggregated.file.Close()
 			break
 		}
 
-		if strings.Contains(nextItem.ts, date) {
+		if strings.Contains(nextItem.ts, aggregated.reportDate) {
 			aggregated.WriteEntry(nextItem)
+			aggregated.hhCounts[mso][nextItem.hh_id] = true
 		}
 	}
 
 	aggregated.writeBuffer()
 	aggregated.Close()
+}
+
+func (aggregated *AggregatedReport) ReportHHCounts() {
+	for mso, hhs := range aggregated.hhCounts {
+		fileName := fmt.Sprintf("hh_count_%s_%s.csv", mso, aggregated.reportDate)
+
+		var content [][]string
+		content = append(content, []string{"date", "provider_code", "hh_id_count"})
+		content = append(content, []string{aggregated.reportDate, getMsoCode(mso), strconv.Itoa(len(hhs))})
+		write(fileName, content, true)
+	}
 }
 
 // WriteEntry writes an entry to the buffer, if buffer has NN values, flush to the disk
@@ -262,13 +293,20 @@ func (aggregated *AggregatedReport) WriteEntry(entry ReportEntry) bool {
 }
 
 // write is a utility func to write [][]string to a file->fileName
-func write(filename string, content [][]string) bool {
+func write(filename string, content [][]string, createFile bool) bool {
 	var f *os.File
 	var err error
 
-	if f, err = os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, os.ModeAppend); err != nil {
-		log.Println("error opening file to add csv:", err)
-		return false
+	if createFile {
+		if f, err = os.Create(filename); err != nil {
+			log.Println("error creating file:", err)
+			return false
+		}
+	} else {
+		if f, err = os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, os.ModeAppend); err != nil {
+			log.Println("error opening file to add csv:", err)
+			return false
+		}
 	}
 
 	writer := csv.NewWriter(f)
@@ -287,7 +325,7 @@ func write(filename string, content [][]string) bool {
 
 // Flush the buffer to the disk/file
 func (aggregated *AggregatedReport) writeBuffer() bool {
-	return write(aggregated.filename, aggregated.buffer.Convert(false, false))
+	return write(aggregated.filename, aggregated.buffer.Convert(false, false), false)
 }
 
 // Close closes the aggregated report file
