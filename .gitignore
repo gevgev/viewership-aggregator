@@ -9,5 +9,6 @@ event/
 *.gzip
 cdw-viewership-reports/
 viewership-report*
+hh_count*.csv
 build-ec2/
 build-data-pipeline/
