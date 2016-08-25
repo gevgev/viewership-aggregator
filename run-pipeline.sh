@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
 
-dates=$(./precondition -D)
+dates=$(./precondition -D -d daaprawcdwdata -dp cdw_viewership_reports)
 
 results=($dates)
 
