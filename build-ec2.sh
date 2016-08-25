@@ -14,10 +14,19 @@ rc=$?; if [[ $rc != 0 ]]; then
 	exit $rc; 
 fi
 
+echo "Build precondition"
+GOOS=linux go build -v github.com/gevgev/precondition
+
+rc=$?; if [[ $rc != 0 ]]; then 
+	echo "Build failed: precondition"
+	cd ..
+	exit $rc; 
+fi
 
 echo "Copying script and mso list"
 cp ../run-aggregated-viewership-ubuntu.sh run.sh
 cp ../mso-list-full.csv mso-list.csv
+cp ../run-pipeline.sh loop.sh
 
 chmod u+x ./run.sh
 
