@@ -61,7 +61,7 @@ var (
 func init() {
 
 	flagRegion := flag.String("r", "us-west-2", "`AWS Region`")
-	flagBucket := flag.String("b", "daap-viewership-reports", "`Bucket name`")
+	flagBucket := flag.String("b", "daaprawcdwdata", "`Bucket name`")
 	flagDateFrom := flag.String("from", formatDefaultDate(), "`Date from`")
 	flagDateTo := flag.String("to", formatDefaultDate(), "`Date to`")
 	flagMsoFileName := flag.String("m", "mso-list.csv", "Filename for `MSO` list")
