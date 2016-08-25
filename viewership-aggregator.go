@@ -106,7 +106,7 @@ func init() {
 func usage() {
 	fmt.Printf("%s, ver. %s\n", appName, version)
 	fmt.Println("Command line:")
-	fmt.Printf("\tprompt$>%s -r <aws_region> -b <s3_bucket_name> --from <date> --to <date> -d <days to aggregate> -m <mso-list-file-name> -M <max_retry>\n", appName)
+	fmt.Printf("\tprompt$>%s -r <aws_region> -b <s3_bucket_name> -from <date> -to <date> -d <days to aggregate> -m <mso-list-file-name> -M <max_retry>\n", appName)
 	flag.Usage()
 	os.Exit(-1)
 }
@@ -312,7 +312,7 @@ func main() {
 
 	params := &s3.ListObjectsInput{
 		Bucket: aws.String(bucketName), // daap-viewership-reports
-		Prefix: aws.String("cdw-viewership-reports"),
+		Prefix: aws.String("cdw_viewership_reports"),
 	}
 
 	// Get the list of all objects
@@ -334,8 +334,8 @@ func main() {
 		for _, mso := range msoList {
 
 			for _, eachDate := range dateRange {
-				// cdw-data-reports/20160601/ Armstrong-Butler/tv_viewreship-Armstrong-Butler-20160601.csv
-				lookupKey := fmt.Sprintf("%s-%s.csv", mso.Name, eachDate)
+				//cdw_viewership_reports/20160601/armstrong_butler/tv_viewreship_armstrong_butler_20160601.csv
+				lookupKey := fmt.Sprintf("%s_%s.csv", mso.Name, eachDate)
 
 				if verbose {
 					log.Println("Lookup key: ", lookupKey)
@@ -415,12 +415,12 @@ func GenerateDailyAggregatesMergeSort(dateFrom string, dateRange []string, daysF
 					log.Printf("ReportDay: %s, ReportIndex: %d, DayForward: %d, jj: %d\n", reportDay, reportIndex, daysForward, jj)
 					log.Println(dateRange)
 				}
-				err = filepath.Walk("cdw-viewership-reports/"+dateRange[jj]+"/", func(path string, f os.FileInfo, err error) error {
+				err = filepath.Walk("cdw_viewership_reports/"+dateRange[jj]+"/", func(path string, f os.FileInfo, err error) error {
 					if isFileToPush(path) {
-						// s3://daap-viewership-reports/cdw-viewership-reports/20160814/Armstrong-Butler/tv_viewership-Armstrong-Butler-20160814.csv
-						// 2016/07/31 18:23:39 Key:  cdw-viewership-reports/20160601/Armstrong-Butler/tv_viewership-Armstrong-Butler-20160601.csv.gzip
-						// 2016/07/31 18:23:39 Lookup key:  HTC-20160727.csv
-						// 2016/07/31 18:23:39 Lookup key:  HTC-20160728.csv
+						// s3://daaprawcdwdata/cdw_viewership_reports/20160814/armstrong_butler/tv_viewership_armstrong_butler_20160814.csv
+						// 2016/07/31 18:23:39 Key:  cdw_viewership_reports/20160814/armstrong_butler/tv_viewership_armstrong_butler_20160814.csv.gz
+						// 2016/07/31 18:23:39 Lookup key:  htc_20160727.csv
+						// 2016/07/31 18:23:39 Lookup key:  htc_20160728.csv
 						msoName := strings.Split(path, "/")[2]
 						fileList[msoName] = append(fileList[msoName], path)
 						if verbose {
@@ -437,7 +437,7 @@ func GenerateDailyAggregatesMergeSort(dateFrom string, dateRange []string, daysF
 
 			// Now start processing the files to generate the aggregated reports
 			filesPack := NewFilesPack(fileList)
-			aggregatedReport, err := NewAggregatedReport(formatReportFilename("viewership-report", reportDay))
+			aggregatedReport, err := NewAggregatedReport(formatReportFilename("aggregated_viewership", reportDay))
 			if err == nil {
 				aggregatedReport.ProcessFiles(filesPack, reportDay)
 				aggregatedReport.ReportHHCounts()
@@ -454,7 +454,7 @@ func GenerateDailyAggregatesMergeSort(dateFrom string, dateRange []string, daysF
 }
 
 func formatReportFilename(fileName, date string) string {
-	return fmt.Sprintf("%s-%s.csv", fileName, date)
+	return fmt.Sprintf("%s_%s.csv", fileName, date)
 }
 
 // PrintFinalReport prints the summary of app run
@@ -463,7 +463,7 @@ func PrintFinalReport(report ReportEntryList, date string, wg *sync.WaitGroup) {
 
 	log.Println("Aggregated final for:", date)
 
-	reportFileName := formatReportFilename("viewership-report", date)
+	reportFileName := formatReportFilename("viewership_report", date)
 	reportForDate := report.Filter(date)
 	if verbose {
 		log.Printf("Date: %s, number of records: %d\n", date, len(reportForDate))
@@ -471,7 +471,7 @@ func PrintFinalReport(report ReportEntryList, date string, wg *sync.WaitGroup) {
 
 	if testRun {
 		log.Println("Saving full dump:")
-		saveCSV(date+"-full-dump.csv", report)
+		saveCSV(date+"_full_dump.csv", report)
 	}
 
 	saveCSV(reportFileName, reportForDate)

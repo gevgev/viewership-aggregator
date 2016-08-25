@@ -15,18 +15,23 @@ to=$2
 
 ./viewership-aggregator -from "$from" -to "$to"
 
-find cdw-viewership-reports -type f -exec rm {} +
+mv cdw_viewership_reports viewership2d
+
+# deleting input data, preserving folder structure
+find viewership2d -type f -exec rm {} +
 
 d="$from"
 up=$(date -j -v +1d -f %Y-%m-%d "$to" +%Y-%m-%d)
 
+# moving reports to under date folders
 while [ "$d" != "$up" ]; do 
   dd=$(date -j -v +0d -f %Y-%m-%d "$d" +%Y%m%d)
-  mv viewership-report-"$dd".csv cdw-viewership-reports/"$dd"/
+  mv aggregated_viewership_"$dd".csv viewership2d/"$dd"/
   d=$(date -j -v +1d -f %Y-%m-%d "$d" +%Y-%m-%d)
 done
 
-FILES="cdw-viewership-reports/*/*.csv"
+# compressing files
+FILES="viewership2d/*/*.csv"
 # get the latest file in the latest subdirectory for that provider
 for file in $FILES
     do  
@@ -34,4 +39,26 @@ for file in $FILES
     gzip "$file"
 done
 
-aws s3 cp ./cdw-viewership-reports/ s3://daap-viewership-reports/cdw-viewership-reports/ --recursive
+# uploading viewership files to AWS
+aws s3 cp ./viewership2d/ s3://daapreports/viewership2d/ --recursive
+
+mv viewership2d hh_count
+# deleting viewership files, preserving folder structure
+find hh_count -type f -exec rm {} +
+
+d="$from"
+up=$(date -j -v +1d -f %Y-%m-%d "$to" +%Y-%m-%d)
+
+# moving hh_count reports
+while [ "$d" != "$up" ]; do 
+  dd=$(date -j -v +0d -f %Y-%m-%d "$d" +%Y%m%d)
+
+  mv hh_count_*"$dd".csv hh_count/"$dd"/
+  d=$(date -j -v +1d -f %Y-%m-%d "$d" +%Y-%m-%d)
+done
+
+# uploading viewership files to AWS
+aws s3 cp ./hh_count/ s3://daapreports/hh_count/ --recursive
+
+# clean up
+rm -fR hh_count

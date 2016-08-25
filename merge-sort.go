@@ -272,7 +272,7 @@ func (aggregated *AggregatedReport) ProcessFiles(pack *FilesPack, forDate string
 
 func (aggregated *AggregatedReport) ReportHHCounts() {
 	for mso, hhs := range aggregated.hhCounts {
-		fileName := fmt.Sprintf("hh_count_%s_%s.csv", mso, aggregated.reportDate)
+		fileName := fmt.Sprintf("hh_count_%s_%s.csv", mso, formatDate(aggregated.reportDate))
 
 		var content [][]string
 		content = append(content, []string{"date", "provider_code", "hh_id_count"})

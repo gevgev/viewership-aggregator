@@ -2,8 +2,8 @@
 
 if [ "$#" -ne 2 ]; then
 	echo "Error: Missing parameters:"
-	echo "  from <20160701"
-	echo "  to <20160709>"
+	echo "  from <2016-07-01"
+	echo "  to <2016-07-09>"
 	exit 1
 fi
 
@@ -15,18 +15,23 @@ to=$2
 
 ./viewership-aggregator -from "$from" -to "$to"
 
-find cdw-viewership-reports -type f -exec rm {} +
+mv cdw_viewership_reports viewership2d
+
+# deleting input data, preserving folder structure
+find viewership2d -type f -exec rm {} +
 
 d="$from"
 up=$(date -I -d "$to + 1 day")
 
+# moving reports to under date folders
 while [ "$d" != "$up" ]; do 
   dd=$(date -d "$d" +%Y%m%d)
-  mv viewership-report-"$dd".csv cdw-viewership-reports/"$dd"/
+  mv aggregated_viewership_"$dd".csv viewership2d/"$dd"/
   d=$(date -I -d "$d + 1 day")
 done
 
-FILES="cdw-viewership-reports/*/*.csv"
+# compressing files
+FILES="viewership2d/*/*.csv"
 # get the latest file in the latest subdirectory for that provider
 for file in $FILES
     do  
@@ -34,4 +39,26 @@ for file in $FILES
     gzip "$file"
 done
 
-aws s3 cp ./cdw-viewership-reports/ s3://daap-viewership-reports/cdw-viewership-reports/ --recursive
+# uploading viewership files to AWS
+aws s3 cp ./viewership2d/ s3://daapreports/viewership2d/ --recursive
+
+mv viewership2d hh_count
+# deleting viewership files, preserving folder structure
+find hh_count -type f -exec rm {} +
+
+d="$from"
+up=$(date -I -d "$to + 1 day")
+
+# moving hh_count reports
+while [ "$d" != "$up" ]; do 
+  dd=$(date -d "$d" +%Y%m%d)
+
+  mv hh_count_*"$dd".csv hh_count/"$dd"/
+  d=$(date -I -d "$d + 1 day")
+done
+
+# uploading viewership files to AWS
+aws s3 cp ./hh_count/ s3://daapreports/hh_count/ --recursive
+
+# clean up
+rm -fR hh_count
