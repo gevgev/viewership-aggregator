@@ -1,6 +1,14 @@
 #!/bin/bash
 set -x
 
+if [ "$#" -ne 1 ]; then
+	echo "Error: Missing parameters:"
+	echo "  days <2/3>"
+	exit 1
+fi
+
+days=$1
+
 # last raw downloaded to daap date from cdw
 dateRaw=$(./precondition -D -d daaprawcdwdata -dp cdw_viewership_reports)
 
@@ -43,4 +51,4 @@ else
     	echo "running"
 fi
 
-./run.sh $from $to
+./run.sh $from $to $days

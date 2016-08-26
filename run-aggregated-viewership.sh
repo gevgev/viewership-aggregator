@@ -61,4 +61,4 @@ done
 aws s3 cp ./hh_count3d/ s3://daapreports/hh_count3d/ --recursive
 
 # clean up
-rm -fR hh_count
+rm -fR hh_count3d
