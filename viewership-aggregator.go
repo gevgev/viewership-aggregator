@@ -39,6 +39,7 @@ const (
 var (
 	regionName      string
 	bucketName      string
+	prefix          string
 	dateFrom        string
 	dateTo          string
 	msoListFilename string
@@ -62,6 +63,7 @@ func init() {
 
 	flagRegion := flag.String("r", "us-west-2", "`AWS Region`")
 	flagBucket := flag.String("b", "daaprawcdwdata", "`Bucket name`")
+	flagPrefix := flag.String("p", "cdw_viewership_reports", "`Prefix` for the objecst in the bucket")
 	flagDateFrom := flag.String("from", formatDefaultDate(), "`Date from`")
 	flagDateTo := flag.String("to", formatDefaultDate(), "`Date to`")
 	flagMsoFileName := flag.String("m", "mso-list.csv", "Filename for `MSO` list")
@@ -83,6 +85,7 @@ func init() {
 
 		regionName = *flagRegion
 		bucketName = *flagBucket
+		prefix = *flagPrefix
 		dateFrom = formatDate(*flagDateFrom)
 		dateTo = formatDate(*flagDateTo)
 		msoListFilename = *flagMsoFileName
@@ -106,16 +109,17 @@ func init() {
 func usage() {
 	fmt.Printf("%s, ver. %s\n", appName, version)
 	fmt.Println("Command line:")
-	fmt.Printf("\tprompt$>%s -r <aws_region> -b <s3_bucket_name> -from <date> -to <date> -d <days to aggregate> -m <mso-list-file-name> -M <max_retry>\n", appName)
+	fmt.Printf("\tprompt$>%s -r <aws_region> -b <s3_bucket_name> -p <prefix> -from <date> -to <date> -d <days to aggregate> -m <mso-list-file-name> -M <max_retry>\n", appName)
 	flag.Usage()
 	os.Exit(-1)
 }
 
 // PrintParams prints out the parameters provided to the app
 func PrintParams() {
-	log.Printf("Provided: -r: %s, -b: %s, -from: %v, -to: %v, -d %d -m %s, -M %d, -v: %v\n",
+	log.Printf("Provided: -r: %s, -b: %s, -p %S -from: %v, -to: %v, -d %d -m %s, -M %d, -v: %v\n",
 		regionName,
 		bucketName,
+		prefix,
 		dateFrom,
 		dateTo,
 		daysAfter,
@@ -312,7 +316,7 @@ func main() {
 
 	params := &s3.ListObjectsInput{
 		Bucket: aws.String(bucketName), // daap-viewership-reports
-		Prefix: aws.String("cdw_viewership_reports"),
+		Prefix: aws.String(prefix),
 	}
 
 	// Get the list of all objects
