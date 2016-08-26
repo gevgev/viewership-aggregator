@@ -15,7 +15,7 @@ fi
 to=${results[1]}
 
 # last daap aggregated (hh) report generated date
-dateAggr=$(./precondition -D -d daapreports -dp hh_count)
+dateAggr=$(./precondition -D -d daapreports -dp hh_count3d)
 
 results=($dateAggr)
 
