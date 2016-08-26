@@ -499,18 +499,19 @@ func saveCSV(reportFileName string, reportForDate ReportEntryList) {
 }
 
 // ReportEntry struct for the aggregated repprt entry
-// hh_id, ts, pg_id, pg_name, ch_num, ch_name, event, zipcode, country
+// hh_id, device_id, event, ts, pg_id, pg_name, ch_num, ch_name, zipcode, country
 // 112961,2016-07-02 23:21:58,975540,"Oklahoma News Report",3,KETA,watch,79081,USA
 type ReportEntry struct {
-	hh_id   string
-	ts      string
-	pg_id   string
-	pg_name string
-	ch_num  string
-	ch_name string
-	event   string
-	zipcode string
-	country string
+	hh_id     string
+	device_id string
+	event     string
+	ts        string
+	pg_id     string
+	pg_name   string
+	ch_num    string
+	ch_name   string
+	zipcode   string
+	country   string
 }
 
 // ReportEntryList list of ReportEntry
@@ -518,7 +519,7 @@ type ReportEntryList []ReportEntry
 
 // Convert converts []ReportEntry into [][]string for csv file
 func (report ReportEntryList) Convert(headerOn bool, addQuotes bool) [][]string {
-	header := []string{"ts", "hh_id", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"}
+	header := []string{"hh_id", "device_id", "event", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "zipcode", "country"}
 	bodyAll := [][]string{}
 	quotes := ""
 
@@ -533,13 +534,14 @@ func (report ReportEntryList) Convert(headerOn bool, addQuotes bool) [][]string 
 	for _, entry := range report {
 		bodyAll = append(bodyAll,
 			[]string{
-				entry.ts,
 				entry.hh_id,
+				entry.device_id,
+				entry.event,
+				entry.ts,
 				entry.pg_id,
 				quotes + entry.pg_name + quotes,
 				entry.ch_num,
 				entry.ch_name,
-				entry.event,
 				entry.zipcode,
 				entry.country,
 			})
@@ -599,9 +601,9 @@ func ReadViewershipEntries(fileName string) []ReportEntry {
 	for i, record := range records {
 		// Skipping the first line - header
 		if i > 0 {
-			// 	---			---			0		1		2		3			4		5			6		7			8
-			// 						 "hh_id", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"
-			entries = append(entries, ReportEntry{record[0], record[1], record[2], record[3], record[4], record[5], record[6], record[7], record[8]})
+			// 	---			---						0			1			2		3			4		5			6			7			8		9
+			// 	---			---						hh_id,   device_id,  event,    ts,         pg_id,   pg_name,   ch_num,    ch_name,   zipcode, country
+			entries = append(entries, ReportEntry{record[0], record[1], record[2], record[3], record[4], record[5], record[6], record[7], record[8], record[9]})
 		}
 	}
 	if verbose {
@@ -723,13 +725,9 @@ func unzipAndSortFile(fileName string) bool {
 	for i, record := range records {
 		// Skipping the first line - header
 		if i > 0 {
-			// 	---			---			0		1		2		3			4		5			6		7			8
-			// 						 "hh_id", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"
-			// FILTER - if the date is for the report date:
-			// Removing Fiter part
-			//if strings.Contains(record[1], date) {
-			entries = append(entries, ReportEntry{record[0], record[1], record[2], record[3], record[4], record[5], record[6], record[7], record[8]})
-			//}
+			// 	---			---						0			1			2		3			4		5			6			7			8		9
+			// 	---			---						hh_id,   device_id,  event,    ts,         pg_id,   pg_name,   ch_num,    ch_name,   zipcode, country
+			entries = append(entries, ReportEntry{record[0], record[1], record[2], record[3], record[4], record[5], record[6], record[7], record[8], record[9]})
 		}
 	}
 

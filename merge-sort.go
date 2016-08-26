@@ -122,21 +122,10 @@ func (file *FileStruct) ReadNextBlock() int {
 		}
 
 		/* Report Entry
-		hh_id   string
-		ts      string
-		pg_id   string
-		pg_name string
-		ch_num  string
-		ch_name string
-		event   string
-		zipcode string
-		country string
-
-		*/
-		// Reverse ts and hh_id to match the struct fields, as Sort in place for original files changes that order.
-		// 										        ts,        hh_id,     pg_id,    pg_name,   ch_num,    ch_name,     event,    zipcode,   country
-		// 									   2016-08-03 15:54:39,04219010,1778206157,Countdown to Rio,  52,	GOLF, 		watch,	29588,			USA
-		file.records = append(file.records, ReportEntry{record[1], record[0], record[2], record[3], record[4], record[5], record[6], record[7], record[8]})
+		 */
+		// 		---			---						0				1			2			3			4		5			6			7			8			9
+		// 		---			---						hh_id,   	device_id,  event,    	ts,         pg_id,   pg_name,   ch_num,    ch_name,   	zipcode, 	country
+		file.records = append(file.records, ReportEntry{record[0], record[1], record[2], record[3], record[4], record[5], record[6], record[7], record[8], record[9]})
 	}
 	if verbose {
 		log.Printf("Read: %d entries from %s \n", len(file.records), file.fileName)
@@ -232,7 +221,7 @@ func NewAggregatedReport(fileName string) (*AggregatedReport, error) {
 	}
 
 	// write the header to the file
-	header := [][]string{{"ts", "hh_id", "pg_id", "pg_name", "ch_num", "ch_name", "event", "zipcode", "country"}}
+	header := [][]string{{"hh_id", "device_id", "event", "ts", "pg_id", "pg_name", "ch_num", "ch_name", "zipcode", "country"}}
 	if !write(aggregatedReport.filename, header, false) {
 		return nil, errors.New("Could not create aggregated file:" + aggregatedReport.filename)
 	}

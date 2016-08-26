@@ -8,7 +8,9 @@ test.out
 event/
 *.gzip
 cdw-viewership-reports/
+cdw_viewership_reports/
 viewership-report*
 hh_count*.csv
 build-ec2/
 build-data-pipeline/
+aggregated_viewership_*.csv
