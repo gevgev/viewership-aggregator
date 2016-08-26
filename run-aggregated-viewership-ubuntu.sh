@@ -13,9 +13,9 @@ set -x
 
 from=$1
 to=$2
-days=$3-1
+days=$(($3 - 1))
 
-if ["$days" == "2"]; then
+if [ "$days" == "2" ]; then
   viewership="viewership3d"
   hh_count="hh_count3d"
 else

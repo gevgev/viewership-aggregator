@@ -9,6 +9,12 @@ fi
 
 days=$1
 
+if [ "$days" == "3" ]; then
+  hh_count="hh_count3d"
+else
+  hh_count="hh_count2d"
+fi
+
 # last raw downloaded to daap date from cdw
 dateRaw=$(./precondition -D -d daaprawcdwdata -dp cdw_viewership_reports)
 
@@ -23,7 +29,7 @@ fi
 to=${results[1]}
 
 # last daap aggregated (hh) report generated date
-dateAggr=$(./precondition -D -d daapreports -dp hh_count3d)
+dateAggr=$(./precondition -D -d daapreports -dp "$hh_count")
 
 results=($dateAggr)
 
