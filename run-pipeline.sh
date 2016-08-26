@@ -43,8 +43,11 @@ from=${results[1]}
 
 echo $from, $to
 
-#go to next day after the last aggregated report
-from=$(date -I -d "$from + 1 day")
+# adjust the date to reflect the days after the last aggregated report
+from=$(date -I -d "$from + $days day")
+
+# go to next day after the last aggregated report
+from=$(date -I -d "$from - 1 day")
 
 dateFrom=$(date -d "$from" +%s)
 dateTo=$(date -d "$to" +%s)
