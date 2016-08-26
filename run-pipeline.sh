@@ -43,12 +43,11 @@ from=${results[1]}
 
 echo $from, $to
 
+#go to next day after the last aggregated report
+from=$(date -I -d "$from + 1 day")
 
 dateFrom=$(date -d "$from" +%s)
 dateTo=$(date -d "$to" +%s)
-
-#go to next day after the last aggregated report
-dateFrom=$(date -I -d "$from + 1 day")
 
 if [ $dateFrom -gt $dateTo ]; then
         echo "No need to run"
