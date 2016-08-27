@@ -15,7 +15,7 @@ else
   hh_count="hh_count2d"
 fi
 
-# last raw downloaded to daap date from cdw
+# last raw downloaded to daap date from cdw = 'to'
 dateRaw=$(./precondition -D -d daaprawcdwdata -dp cdw_viewership_reports)
 
 results=($dateRaw)
@@ -28,7 +28,7 @@ fi
 
 to=${results[1]}
 
-# last daap aggregated (hh) report generated date
+# last daap aggregated (hh) report generated date = 'from'
 dateAggr=$(./precondition -D -d daapreports -dp "$hh_count")
 
 results=($dateAggr)
@@ -43,11 +43,15 @@ from=${results[1]}
 
 echo $from, $to
 
-# adjust the date to reflect the days after the last aggregated report
-from=$(date -I -d "$from + $days day")
+# $from + 1 day = where from to start
+# $to - days = until when
 
-# go to next day after the last aggregated report
-from=$(date -I -d "$from - 1 day")
+# adjust the date to reflect the days after the last aggregated report
+from=$(date -I -d "$from + 1 day")
+
+# go to next day after the last aggregated report = ( to - 2/3 + 1)
+to=$(date -I -d "$to - "$days" day")
+to=$(date -I -d "$to + 1 day")
 
 dateFrom=$(date -d "$from" +%s)
 dateTo=$(date -d "$to" +%s)
